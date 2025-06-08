@@ -1,4 +1,4 @@
-import fs from 'node:fs/promises'
+import fs from 'fs'
 import {mdxJsx} from 'micromark-extension-mdx-jsx'
 import {fromMarkdown} from 'mdast-util-from-markdown'
 import {mdxJsxFromMarkdown, mdxJsxToMarkdown} from 'mdast-util-mdx-jsx'
@@ -11,9 +11,11 @@ import remarkParse from 'remark-parse';
 import {remark} from 'remark'
 import remarkMdx from 'remark-mdx'
 import rehypeParse from 'rehype-parse';
-import generateLabel from "./components/label.js";
+import remarkFrontmatter from "remark-frontmatter";
+import {generate, registerGenerator} from "./components/generator.js";
+import path from "node:path";
 
-const doc = await fs.readFile('example.mdx')
+const doc = fs.readFileSync('example.mdx')
 
 const tree = fromMarkdown(doc, {
     extensions: [mdxJsx()],
@@ -66,22 +68,35 @@ const tree = fromMarkdown(doc, {
 //
 // console.log(String(file));
 
+registerGenerator({
+    name: "label",
+    dataGenerator: (name, attributes) => {
+        return {
+            name: attributes.find(attr => attr.name === "name").value
+        }
+    }
+});
+registerGenerator({
+    name: "ref",
+    dataGenerator: (name, attributes) => {
+        return {
+            href: attributes.find(attr => attr.name === "to").value,
+            value: "1.1"
+        }
+    }
+});
+
 const customHandlers = {
     mdxJsxTextElement(state, node) {
         // Custom transformation for inline MDX JSX elements
-        return {
-            type: 'element',
-            tagName: node.name,
-            properties: {
-                className: ['custom-inline']
-            },
-            children: state.all(node)
-        }
-    },
-    mdxJsxFlowElement(state, node) {
-        // Custom transformation for block-level MDX JSX elements
-        let element = generateLabel({
-            name: node.attributes[0].value
+        let element = generate({
+            name: node.name.toLowerCase(),
+            attributes: node.attributes.map((attr) => {
+                return {
+                    name: attr.name,
+                    value: attr.value
+                }
+            }),
         });
 
         const processor = unified()
@@ -91,15 +106,68 @@ const customHandlers = {
 
         console.log(tree);
 
+        return tree.children;
+    },
+    mdxJsxFlowElement(state, node) {
+        // Custom transformation for block-level MDX JSX elements
+        let element = generate({
+            name: node.name.toLowerCase(),
+            attributes: node.attributes.map(attr => {
+                return {
+                    name: attr.name,
+                    value: attr.value
+                }
+            }),
+        });
+
+        const processor = unified()
+            .use(rehypeParse, { fragment: true });
+
+        const tree = processor.runSync(processor.parse(element));
+
         return tree.children[0];
     },
+    mdxTextExpression(state, node) {
+        console.warn("\x1b[38;2;255;176;5m[WARN] JavaScript expressions are not prohibited in this markdown format. The Expression will be inserted as plain text in a <span> element.\x1b[0m");
+        return {
+            type: 'element',
+            tagName: "span",
+            children: [{
+                type: 'text',
+                value: node.value
+            }]
+        };
+    },
     mdxFlowExpression(state, node) {
-        console.warn("JavaScript expressions are not prohibited in this markdown format");
-        return {};
+        console.warn("\x1b[38;2;255;176;5m[WARN] JavaScript expressions are not prohibited in this markdown format. The Expression will be inserted as plain text in a <span> element.\x1b[0m");
+        return {
+            type: 'element',
+            tagName: "p",
+            children: [{
+                type: 'text',
+                value: node.value
+            }]
+        };
     }
 };
 
+let frontmatter = {};
+
 const file = await remark()
+    .use(remarkFrontmatter)
+    .use(() => (tree) => {
+        if(tree.children[0].type === "yaml") {
+            tree.children[0].value.trim().split("\n").forEach(line => {
+                if(line.trim().length >= 1) {
+                    // code from the vercel portfolio starter kit (https://vercel.com/templates/next.js/portfolio-starter-kit)
+                    let [key, ...valueArr] = line.split(': ')
+                    let value = valueArr.join(': ').trim()
+                    value = value.replace(/^['"](.*)['"]$/, '$1') // Remove quotes
+                    frontmatter[key.trim()] = value
+                }
+            })
+        }
+    })
     .use(remarkMdx)
     .use(remarkRehype, {
         handlers: customHandlers,
@@ -107,4 +175,7 @@ const file = await remark()
     .use(rehypeStringify)
     .process(doc)
 
+fs.writeFileSync(path.join(process.cwd(), "build","content", "example.html"), String(file));
+
 console.log(String(file))
+console.log(frontmatter)
