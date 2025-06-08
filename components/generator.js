@@ -28,7 +28,11 @@ export function generate({name, attributes}) {
     try{
         const file = fs.readFileSync(path.join(process.cwd(), "components",name+".ejs"), "utf-8");
 
-        console.log("[DEBUG] ", name);
+        console.log("[DEBUG] Render <" + name + ">");
+
+        if(generatorEntry.preEjsRender) {
+            generatorEntry.preEjsRender(name, attributes);
+        }
 
         return ejs.render(file, generatorEntry.dataGenerator(name, attributes), {
             filename: path.join(process.cwd(), "components",name),

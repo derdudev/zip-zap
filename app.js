@@ -1,72 +1,29 @@
 import fs from 'fs'
-import {mdxJsx} from 'micromark-extension-mdx-jsx'
-import {fromMarkdown} from 'mdast-util-from-markdown'
-import {mdxJsxFromMarkdown, mdxJsxToMarkdown} from 'mdast-util-mdx-jsx'
-import {toMarkdown} from 'mdast-util-to-markdown'
 import {unified} from 'unified'
 import rehypeStringify from 'rehype-stringify'
 import remarkRehype from 'remark-rehype'
-import {reporter} from 'vfile-reporter'
-import remarkParse from 'remark-parse';
 import {remark} from 'remark'
 import remarkMdx from 'remark-mdx'
 import rehypeParse from 'rehype-parse';
 import remarkFrontmatter from "remark-frontmatter";
 import {generate, registerGenerator} from "./components/generator.js";
 import path from "node:path";
+import {renderEjsComponent} from "./ejs-components/render-ejs-component.js";
+import Counter from "./counter.js";
 
 const doc = fs.readFileSync('example.mdx')
 
-const tree = fromMarkdown(doc, {
-    extensions: [mdxJsx()],
-    mdastExtensions: [mdxJsxFromMarkdown()]
-})
+let counter = 0;
+let sectionCounter = new Counter(0, (rawValue) => {
+    return rawValue;
+});
+let subsectionCounter = new Counter(0, (rawValue) => {
+    return sectionCounter.value + "." +  rawValue;
+});
 
-// console.log(tree.children)
+let currentCounter = sectionCounter;
 
-// const out = toMarkdown(tree, {extensions: [mdxJsxToMarkdown()]})
-// console.log(out)
-
-// const file = await unified()
-//     .use(() => {
-//         return {
-//             parse: () => tree, // Inject the already-parsed MDAST tree
-//             // Required by unified, but we don't need it
-//             stringify: (node) => node,
-//         };
-//     })
-//     .use(remarkRehype)
-//     .use(rehypeStringify)
-//     .process(doc)
-
-// // Use unified to process the MDAST into HTML
-// const file = await unified()
-//     .use(remarkRehype) // Convert MDAST to HAST
-//     .use(rehypeStringify) // Convert HAST to HTML
-//     .run(tree); // Use .run() instead of .process()
-//
-// // Generate the HTML output
-// const html = unified().use(rehypeStringify).stringify(file);
-//
-// // console.error(reporter(file))
-// console.log(String(html))
-
-// const markdown = `
-// # Hello World
-//
-// <MyComponent prop="value">Custom content</MyComponent>
-// `;
-//
-// const file = await unified()
-//     .use(remarkParse, {
-//         extensions: [mdxJsx()],
-//         mdastExtensions: [mdxJsxFromMarkdown()],
-//     })
-//     .use(remarkRehype)
-//     .use(rehypeStringify)
-//     .process(doc);
-//
-// console.log(String(file));
+let labels = [];
 
 registerGenerator({
     name: "label",
@@ -74,14 +31,35 @@ registerGenerator({
         return {
             name: attributes.find(attr => attr.name === "name").value
         }
+    },
+    preEjsRender: (name, attributes) => {
+        labels.push({
+            name: attributes.find(attr => attr.name === "name").value,
+            ccounter: Counter.fromCounter(currentCounter)
+        })
     }
 });
 registerGenerator({
     name: "ref",
     dataGenerator: (name, attributes) => {
-        return {
-            href: attributes.find(attr => attr.name === "to").value,
-            value: "1.1"
+        let to = attributes.find(attr => attr.name === "to").value;
+        let label = labels.find(label => label.name === to);
+
+        // console.log("[DEBUG] labels: ", labels);
+        // console.log("[DEBUG] Counter corresp. to Ref: ", label);
+
+        if(label){
+            // console.log("[DEBUG]", label.ccounter)
+            // console.log("[DEBUG] Counter value: ", label.ccounter.value)
+            return {
+                href: "#"+to,
+                value: label.ccounter.value
+            }
+        } else {
+            return {
+                href: to,
+                value: "tbr"
+            }
         }
     }
 });
@@ -104,8 +82,6 @@ const customHandlers = {
 
         const tree = processor.runSync(processor.parse(element));
 
-        console.log(tree);
-
         return tree.children;
     },
     mdxJsxFlowElement(state, node) {
@@ -125,7 +101,7 @@ const customHandlers = {
 
         const tree = processor.runSync(processor.parse(element));
 
-        return tree.children[0];
+        return tree.children;
     },
     mdxTextExpression(state, node) {
         console.warn("\x1b[38;2;255;176;5m[WARN] JavaScript expressions are not prohibited in this markdown format. The Expression will be inserted as plain text in a <span> element.\x1b[0m");
@@ -147,6 +123,53 @@ const customHandlers = {
                 type: 'text',
                 value: node.value
             }]
+        };
+    },
+    link(state, node) {
+        let element = renderEjsComponent({
+            name: "in-out-link",
+            data: {
+                href: node.url,
+                children: node.children.map(child => {
+                    if(child.type === "text") {
+                        return child.value;
+                    }
+                }),
+            }
+        });
+
+        const processor = unified()
+            .use(rehypeParse, { fragment: true });
+
+        const tree = processor.runSync(processor.parse(element));
+
+        return tree.children;
+    },
+    heading(state, node) {
+        switch(node.depth){
+            case 1:
+                sectionCounter.incr();
+                currentCounter = sectionCounter;
+                break;
+            case 2:
+                subsectionCounter.incr();
+                currentCounter = subsectionCounter;
+                break;
+        }
+
+        const tagName = `h${node.depth}`;
+        return {
+            type: 'element',
+            tagName: tagName,
+            properties: {
+                className: [`heading-level-${node.depth}`],
+                id: node.children
+                    .filter((child) => child.type === 'text')
+                    .map((child) => child.value)
+                    .join('-')
+                    .toLowerCase(),
+            },
+            children: state.all(node),
         };
     }
 };
@@ -175,7 +198,35 @@ const file = await remark()
     .use(rehypeStringify)
     .process(doc)
 
-fs.writeFileSync(path.join(process.cwd(), "build","content", "example.html"), String(file));
+console.log("[DEBUG] ### Second render ###")
 
-console.log(String(file))
-console.log(frontmatter)
+// RESET COUNTERS
+currentCounter = sectionCounter;
+
+const file2 = await remark()
+    .use(remarkFrontmatter)
+    .use(() => (tree) => {
+        if(tree.children[0].type === "yaml") {
+            tree.children[0].value.trim().split("\n").forEach(line => {
+                if(line.trim().length >= 1) {
+                    // code from the vercel portfolio starter kit (https://vercel.com/templates/next.js/portfolio-starter-kit)
+                    let [key, ...valueArr] = line.split(': ')
+                    let value = valueArr.join(': ').trim()
+                    value = value.replace(/^['"](.*)['"]$/, '$1') // Remove quotes
+                    frontmatter[key.trim()] = value
+                }
+            })
+        }
+    })
+    .use(remarkMdx)
+    .use(remarkRehype, {
+        handlers: customHandlers,
+    })
+    .use(rehypeStringify)
+    .process(doc)
+
+fs.writeFileSync(path.join(process.cwd(), "build","content", "example.html"), String(file));
+fs.writeFileSync(path.join(process.cwd(), "build","content", "example-run-2.html"), String(file2));
+
+console.log(String(file2))
+// console.log(frontmatter)
