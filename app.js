@@ -10,10 +10,13 @@ import {generate, registerGenerator} from "./components/generator.js";
 import path from "node:path";
 import {renderEjsComponent} from "./ejs-components/render-ejs-component.js";
 import Counter from "./counter.js";
+import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
+import rehypeMathjax from 'rehype-mathjax'
+import remarkParse from "remark-parse";
 
-const doc = fs.readFileSync('example.mdx')
+const doc = fs.readFileSync('content/main-chapters/about-me.mdx')
 
-let counter = 0;
 let sectionCounter = new Counter(0, (rawValue) => {
     return rawValue;
 });
@@ -53,7 +56,7 @@ registerGenerator({
             // console.log("[DEBUG] Counter value: ", label.ccounter.value)
             return {
                 href: "#"+to,
-                value: label.ccounter.value
+                value: "Abschnitt " + label.ccounter.value
             }
         } else {
             return {
@@ -149,13 +152,26 @@ const customHandlers = {
         switch(node.depth){
             case 1:
                 sectionCounter.incr();
+                subsectionCounter.setRawValue(0);
                 currentCounter = sectionCounter;
+
+                node.children = [{
+                    type: 'text',
+                    value: "§"+sectionCounter.value+". "
+                }].concat(node.children);
                 break;
             case 2:
                 subsectionCounter.incr();
                 currentCounter = subsectionCounter;
+
+                node.children = [{
+                    type: 'text',
+                    value: "§"+subsectionCounter.value+". "
+                }].concat(node.children);
                 break;
         }
+
+        console.log("[DEBUG]", node);
 
         const tagName = `h${node.depth}`;
         return {
@@ -192,6 +208,7 @@ const file = await remark()
         }
     })
     .use(remarkMdx)
+    .use(remarkMath)
     .use(remarkRehype, {
         handlers: customHandlers,
     })
@@ -202,8 +219,11 @@ console.log("[DEBUG] ### Second render ###")
 
 // RESET COUNTERS
 currentCounter = sectionCounter;
+sectionCounter.setRawValue(0);
+subsectionCounter.setRawValue(0);
 
-const file2 = await remark()
+const file2 = await unified()
+    .use(remarkParse)
     .use(remarkFrontmatter)
     .use(() => (tree) => {
         if(tree.children[0].type === "yaml") {
@@ -219,14 +239,24 @@ const file2 = await remark()
         }
     })
     .use(remarkMdx)
+    .use(remarkMath)
+    .use(() => (tree) => {
+        console.log(tree)
+    })
     .use(remarkRehype, {
         handlers: customHandlers,
     })
+    .use(rehypeMathjax)
     .use(rehypeStringify)
     .process(doc)
 
 fs.writeFileSync(path.join(process.cwd(), "build","content", "example.html"), String(file));
-fs.writeFileSync(path.join(process.cwd(), "build","content", "example-run-2.html"), String(file2));
+fs.writeFileSync(path.join(process.cwd(), "build","content", "example-run-2.html"), renderEjsComponent({
+    name: "layout",
+    data: {
+        content: String(file2)
+    }
+}));
 
-console.log(String(file2))
+// console.log(String(file2))
 // console.log(frontmatter)
