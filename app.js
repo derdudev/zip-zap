@@ -9,22 +9,48 @@ import remarkFrontmatter from "remark-frontmatter";
 import {generate, registerGenerator} from "./components/generator.js";
 import path from "node:path";
 import {renderEjsComponent} from "./ejs-components/render-ejs-component.js";
-import Counter from "./counter.js";
+import {
+    counterIncr,
+    counterReset,
+    counterValue,
+    currentCounterValue,
+    registerCounter,
+    resetCounters
+} from "./counter.js";
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import rehypeMathjax from 'rehype-mathjax'
 import remarkParse from "remark-parse";
+import rehypeFormat from "rehype-format"
 
 const doc = fs.readFileSync('content/main-chapters/about-me.mdx')
 
-let sectionCounter = new Counter(0, (rawValue) => {
-    return rawValue;
-});
-let subsectionCounter = new Counter(0, (rawValue) => {
-    return sectionCounter.value + "." +  rawValue;
-});
+registerCounter({
+    name: "section",
+    initialValue: 0,
+    stylizedValueGenerator: (rawValue) => {
+        return rawValue;
+    },
+    onUpdate: (newValue) => {
+        counterReset("subsection");
+    }
+})
+registerCounter({
+    name: "subsection",
+    initialValue: 0,
+    stylizedValueGenerator: (rawValue) => {
+        return counterValue("section") + "." +  rawValue;
+    }
+})
 
-let currentCounter = sectionCounter;
+// let sectionCounter = new Counter(0, (rawValue) => {
+//     return rawValue;
+// });
+// let subsectionCounter = new Counter(0, (rawValue) => {
+//     return sectionCounter.value + "." +  rawValue;
+// });
+
+// let currentCounter = sectionCounter;
 
 let labels = [];
 
@@ -38,7 +64,7 @@ registerGenerator({
     preEjsRender: (name, attributes) => {
         labels.push({
             name: attributes.find(attr => attr.name === "name").value,
-            ccounter: Counter.fromCounter(currentCounter)
+            value: currentCounterValue()
         })
     }
 });
@@ -56,7 +82,7 @@ registerGenerator({
             // console.log("[DEBUG] Counter value: ", label.ccounter.value)
             return {
                 href: "#"+to,
-                value: "Abschnitt " + label.ccounter.value
+                value: "Abschnitt " + label.value
             }
         } else {
             return {
@@ -151,27 +177,24 @@ const customHandlers = {
     heading(state, node) {
         switch(node.depth){
             case 1:
-                sectionCounter.incr();
-                subsectionCounter.setRawValue(0);
-                currentCounter = sectionCounter;
+                counterIncr("section");
 
                 node.children = [{
                     type: 'text',
-                    value: "§"+sectionCounter.value+". "
+                    value: "§"+counterValue("section")+". "
                 }].concat(node.children);
                 break;
             case 2:
-                subsectionCounter.incr();
-                currentCounter = subsectionCounter;
+                counterIncr("subsection");
 
                 node.children = [{
                     type: 'text',
-                    value: "§"+subsectionCounter.value+". "
+                    value: "§"+counterValue("subsection")+". "
                 }].concat(node.children);
                 break;
         }
 
-        console.log("[DEBUG]", node);
+        // console.log("[DEBUG]", node);
 
         const tagName = `h${node.depth}`;
         return {
@@ -218,9 +241,7 @@ const file = await remark()
 console.log("[DEBUG] ### Second render ###")
 
 // RESET COUNTERS
-currentCounter = sectionCounter;
-sectionCounter.setRawValue(0);
-subsectionCounter.setRawValue(0);
+resetCounters();
 
 const file2 = await unified()
     .use(remarkParse)
@@ -240,13 +261,11 @@ const file2 = await unified()
     })
     .use(remarkMdx)
     .use(remarkMath)
-    .use(() => (tree) => {
-        console.log(tree)
-    })
     .use(remarkRehype, {
         handlers: customHandlers,
     })
-    .use(rehypeMathjax)
+    .use(rehypeKatex)
+    // .use(rehypeFormat)
     .use(rehypeStringify)
     .process(doc)
 

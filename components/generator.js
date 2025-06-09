@@ -37,7 +37,7 @@ export function generate({name, attributes}) {
         return ejs.render(file, generatorEntry.dataGenerator(name, attributes), {
             filename: path.join(process.cwd(), "components",name),
             rmWhitespace: true
-        });
+        }).trim();
     } catch(e) {
         if(e.code === "ENOENT") {
             console.error(`\x1b[38;2;255;26;5m[ERR] You did not create a component template file (*.ejs) in the /components directory for the generator "${name}". \x1b[0m`);
