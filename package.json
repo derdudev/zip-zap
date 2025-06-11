@@ -18,6 +18,7 @@
     "mdast-util-to-markdown": "^2.1.2",
     "micromark": "^4.0.2",
     "micromark-extension-mdx-jsx": "^3.0.2",
+    "minimist": "^1.2.8",
     "rehype-format": "^5.0.1",
     "rehype-katex": "^7.0.1",
     "rehype-mathjax": "^7.1.0",

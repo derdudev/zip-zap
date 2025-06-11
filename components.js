@@ -2,9 +2,9 @@
 import Label from "./components/label.js";
 import Ref from "./components/ref.js";
 
-const generators = [
+const components = [
     Label,
     Ref
 ]
 
-export default generators;
+export default components;
