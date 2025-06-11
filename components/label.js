@@ -1,5 +1,5 @@
 import {currentCounterValue} from "../lib/counter.js";
-import {registerRegistry, updateRegistry} from "../registries.js";
+import {registerRegistry, updateRegistry} from "../lib/registry.js";
 
 registerRegistry("labels", []);
 

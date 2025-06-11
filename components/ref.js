@@ -1,4 +1,4 @@
-import {getRegistryData} from "../registries.js";
+import {getRegistryData} from "../lib/registry.js";
 
 const Ref = {
     name: "ref",
