@@ -18,6 +18,13 @@ const counters = [
         stylizedValueGenerator: (rawValue) => {
             return counterValue("section") + "." +  rawValue;
         }
+    },
+    {
+        name: "equation",
+        initialValue: 0,
+        stylizedValueGenerator: (rawValue) => {
+            return rawValue;
+        }
     }
 ]
 
