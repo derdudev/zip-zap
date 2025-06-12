@@ -1,0 +1,23 @@
+\documentclass{book}
+
+\usepackage{fontspec}
+\newfontfamily\headingsfont{IBM Plex Mono}
+
+\usepackage[default]{fontsetup}
+
+\setmonofont{IBM Plex Mono}[Scale=0.9]
+
+\usepackage{titlesec}
+\titleformat{\chapter}[display]
+  {\normalfont\headingsfont\huge\bfseries}
+  {\chaptertitlename\ \thechapter}{20pt}{\Huge}
+\titleformat{\section}
+  {\normalfont\headingsfont\Large\bfseries}
+  {\thesection}{1em}{}
+
+\title{matteomertz.de}
+\author{Matteo Mertz}
+
+\begin{document}
+    \include{chapters/das-bin-ich}
+\end{document}
