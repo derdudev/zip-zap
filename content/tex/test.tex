@@ -2,10 +2,11 @@
 
 \usepackage{fontspec}
 \newfontfamily\headingsfont{IBM Plex Mono}
+\newfontfamily\codefont{IBM Plex Mono}[Scale=0.87,UprightFont={* Medium}]
+\newfontfamily\codefonttwo{IBM Plex Mono}[Scale=0.87]
 
 \usepackage[default]{fontsetup}
-
-\setmonofont{IBM Plex Mono}[Scale=0.9]
+\setmonofont{JetBrains Mono}[Scale=0.87]
 
 \usepackage{titlesec}
 \titleformat{\chapter}[display]
@@ -14,6 +15,8 @@
 \titleformat{\section}
   {\normalfont\headingsfont\Large\bfseries}
   {\thesection}{1em}{}
+
+\usepackage{amsmath}
 
 \title{matteomertz.de}
 \author{Matteo Mertz}
